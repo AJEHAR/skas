@@ -228,6 +228,22 @@
     const ADMIN_PASSWORD = "skpkcba4082";
     const ADMIN_PIN = "1212";
 
+    // ===================== KONFIGURASI PELAYAN =====================
+    // Isi URL GAS Web App anda selepas deploy:
+    // Contoh: 'https://script.google.com/macros/s/AKfycb.../exec'
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzFGRd_04NKVyzY8M1Y-zGIZs1b6EM3wjLWjLg8shlyi7Ib648AIhzhKgtCA_NzpcHe/exec';
+
+    // Helper API — guna fetch() ke GAS Web App
+    const gasApi = async (action, data = {}) => {
+      const res = await fetch(GAS_URL, {
+        method: 'POST',
+        // Tiada Content-Type header = "simple request", tiada CORS preflight
+        body: JSON.stringify({ action, ...data }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    };
+
     const tarafInfo = s => {
       if(s>=85) return {label:'CEMERLANG',cls:'badge-cemerlang'};
       if(s>=70) return {label:'BAIK',cls:'badge-baik'};
@@ -399,18 +415,16 @@
 
       const fetchData = () => {
         setIsLoading(true);
-        google.script.run
-          .withSuccessHandler(d => { setSubmissions(JSON.parse(d)); setIsLoading(false); })
-          .withFailureHandler(() => { showToast('Gagal memuatkan data.','error'); setIsLoading(false); })
-          .getSubmissionsData();
+        gasApi('getSubmissionsData')
+          .then(d => { setSubmissions(JSON.parse(d)); setIsLoading(false); })
+          .catch(() => { showToast('Gagal memuatkan data. Semak URL GAS.','error'); setIsLoading(false); });
       };
 
-      // handleSave pulangkan Promise supaya EvaluationForm boleh await dengan betul
       const handleSave = (fd, skorItem, itemScores) => {
         return new Promise((resolve, reject) => {
           const {label: taraf} = tarafInfo(fd.skor);
           const payload = {
-            action:"new_submission", id:newId(), ...fd,
+            id:newId(), ...fd,
             nama:(fd.nama||'').toUpperCase().trim(),
             subjek:(fd.subjek||'').toUpperCase().trim(),
             kelas:(fd.kelas||'').toUpperCase().trim(),
@@ -419,38 +433,26 @@
             sesi:(fd.sesi||'').toUpperCase().trim(),
             taraf, details:skorItem, itemScores
           };
-          google.script.run
-            .withSuccessHandler(r => {
+          gasApi('saveSubmissionData', {payload})
+            .then(r => {
               const res = JSON.parse(r);
-              if(res.status==="berjaya") {
-                showToast('Rekod berjaya disimpan!','success');
-                setView('dashboard');
-                resolve();
-              } else {
-                showToast('Ralat: '+res.mesej,'error');
-                reject();
-              }
+              if(res.status==='berjaya') { showToast('Rekod berjaya disimpan!','success'); setView('dashboard'); resolve(); }
+              else { showToast('Ralat: '+res.mesej,'error'); reject(); }
             })
-            .withFailureHandler(() => { showToast('Gagal menghubungi pelayan.','error'); reject(); })
-            .saveSubmissionData(JSON.stringify(payload));
+            .catch(() => { showToast('Gagal menghubungi pelayan.','error'); reject(); });
         });
       };
 
       const doDelete = (id) => {
         setIsLoading(true);
-        google.script.run
-          .withSuccessHandler(r => {
+        gasApi('deleteSubmissionData', {id})
+          .then(r => {
             const res = JSON.parse(r);
-            if(res.status==="berjaya") {
-              setSubmissions(p=>p.filter(i=>i.id!==id));
-              showToast('Rekod berjaya dipadam.','success');
-            } else {
-              showToast('Ralat: '+res.mesej,'error');
-            }
+            if(res.status==='berjaya') { setSubmissions(p=>p.filter(i=>i.id!==id)); showToast('Rekod berjaya dipadam.','success'); }
+            else showToast('Ralat: '+res.mesej,'error');
             setIsLoading(false);
           })
-          .withFailureHandler(() => { showToast('Gagal menghubungi pelayan.','error'); setIsLoading(false); })
-          .deleteSubmissionData(id);
+          .catch(() => { showToast('Gagal menghubungi pelayan.','error'); setIsLoading(false); });
       };
 
       if(!role) return (
@@ -1242,13 +1244,13 @@
         if(!rphFile&&!evidenFile) return;
         setUploading(true);
         try {
-          const p={action:'update_file',id:record.id};
-          if(rphFile){p.rphBase64=await toB64(rphFile);p.rphName=rphFile.name;p.rphMimeType=rphFile.type;}
-          if(evidenFile){p.evidenBase64=await toB64(evidenFile);p.evidenName=evidenFile.name;p.evidenMimeType=evidenFile.type;}
-          google.script.run
-            .withSuccessHandler(r=>{const res=JSON.parse(r);if(res.status==='berjaya')onSuccess();else{showToast('Ralat: '+(res.mesej||''),'error');setUploading(false);}})
-            .withFailureHandler(()=>{showToast('Gagal menghubungi pelayan.','error');setUploading(false);})
-            .updateFileData(JSON.stringify(p));
+          const payload={id:record.id};
+          if(rphFile){payload.rphBase64=await toB64(rphFile);payload.rphName=rphFile.name;payload.rphMimeType=rphFile.type;}
+          if(evidenFile){payload.evidenBase64=await toB64(evidenFile);payload.evidenName=evidenFile.name;payload.evidenMimeType=evidenFile.type;}
+          const r = await gasApi('updateFileData', {payload});
+          const res = JSON.parse(r);
+          if(res.status==='berjaya') onSuccess();
+          else { showToast('Ralat: '+(res.mesej||''),'error'); setUploading(false); }
         } catch{showToast('Ralat tidak dijangka.','error');setUploading(false);}
       };
 
