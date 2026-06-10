@@ -1,43 +1,1416 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-
-  <!-- Mobile correctness -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
-  <title>SK@S az=R</title>
-
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      background: #ffffff;
-      overflow: hidden;
-      touch-action: manipulation;
+    * { font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+    html, body { background:#f0f2f7; overflow-x:hidden; }
+    .mono { font-family:'DM Mono',monospace; }
+    .cscroll::-webkit-scrollbar { width:4px; height:4px; }
+    .cscroll::-webkit-scrollbar-track { background:transparent; }
+    .cscroll::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:99px; }
+    .sidebar { transition: transform 0.3s cubic-bezier(.4,0,.2,1); }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+    .fade-up { animation: fadeUp 0.3s ease both; }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    .fade-in { animation: fadeIn 0.25s ease both; }
+    @keyframes scaleIn { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:scale(1)} }
+    .scale-in { animation: scaleIn 0.25s ease both; }
+    @keyframes slideInRight { from{opacity:0;transform:translateX(24px)} to{opacity:1;transform:translateX(0)} }
+    .slide-in-right { animation: slideInRight 0.28s ease both; }
+    @keyframes slideOutRight { from{opacity:1;transform:translateX(0)} to{opacity:0;transform:translateX(24px)} }
+    .badge-cemerlang{background:#dcfce7;color:#166534;}
+    .badge-baik{background:#dbeafe;color:#1e40af;}
+    .badge-sederhana{background:#fef9c3;color:#854d0e;}
+    .badge-perlu{background:#fee2e2;color:#991b1b;}
+    .badge-khas{background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;}
+    .role-card { transition:all 0.2s ease; border:2px solid #e2e8f0; }
+    .role-card:active { transform:scale(0.97); }
+    @media(hover:hover){
+      .role-card.admin:hover{transform:translateY(-3px);box-shadow:0 16px 32px -8px rgba(30,58,138,0.18);border-color:#1e3a8a;}
+      .role-card.guru:hover{transform:translateY(-3px);box-shadow:0 16px 32px -8px rgba(5,150,105,0.18);border-color:#059669;}
     }
-
-    iframe {
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100dvh; /* correct mobile viewport */
-      border: none;
-      display: block;
-    }
+    input:focus, select:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.12); }
+    .input-error { border-color:#ef4444 !important; background:#fff5f5; }
+    .sesi-btn { transition:all 0.15s; }
+    @media(hover:hover){ .trow:hover{background:#f8faff;} }
+    .modal-bg { backdrop-filter:blur(3px); }
+    .tap-target { min-height:44px; min-width:44px; }
+    .pin-dot { transition: all 0.2s; }
+    .pin-dot.filled { background:#1e40af; transform:scale(1.1); }
+    .pin-btn { transition:all 0.15s; user-select:none; }
+    .pin-btn:active { transform:scale(0.92); background:#e0e7ff; }
+    .pw-input-wrap { position:relative; }
+    .pw-toggle { position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; color:#94a3b8; }
+    .pw-toggle:hover { color:#1e40af; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+    .shake { animation:shake 0.4s ease; }
+    .auth-tab { transition:all 0.2s; border-bottom:2px solid transparent; }
+    .auth-tab.active { border-bottom-color:#1e40af; color:#1e40af; }
   </style>
 </head>
-
 <body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
 
-  <iframe
-    src="https://script.google.com/macros/s/AKfycbzFGRd_04NKVyzY8M1Y-zGIZs1b6EM3wjLWjLg8shlyi7Ib648AIhzhKgtCA_NzpcHe/exec"
-    allowfullscreen>
-  </iframe>
+    // ── Saiz fail maksimum: 4MB (selamat untuk Apps Script 6MB payload limit)
+    const MAX_FILE_BYTES = 4 * 1024 * 1024;
+    const MAX_FILE_LABEL = "4MB";
 
+    // ── Jana ID unik (timestamp + rawak)
+    const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+    // ── Format skor: tunjuk perpuluhan jika bukan nombor bulat
+    const fmtSkor = (s) => {
+      const n = parseFloat(s) || 0;
+      return n % 1 === 0 ? n.toString() : n.toFixed(1);
+    };
+
+    // ===================== RUBRIK BIASA =====================
+    const RUBRIK = [
+      { kod:"4.1.1", tajuk:"Guru bertindak sebagai perancang", wajaran:10,
+        tindakan:[
+          "a) Menyediakan RPH yang mengandungi objektif yang boleh diukur dan aktiviti pembelajaran yang sesuai",
+          "b) Menentukan kaedah pentaksiran",
+          "c) Menyediakan ABM/BBM/BBB/TMK"
+        ]
+      },
+      { kod:"4.2.1", tajuk:"Guru mengawal proses pembelajaran", wajaran:10,
+        tindakan:[
+          "a) Mengelola isi pelajaran/skop pembelajaran yang dirancang",
+          "b) Mengelola masa PdPc selaras dengan aktiviti pembelajaran",
+          "c) Memberi peluang kepada penyertaan aktif murid"
+        ]
+      },
+      { kod:"4.2.2", tajuk:"Guru mengawal suasana pembelajaran", wajaran:5,
+        tindakan:[
+          "a) Mengawasi komunikasi murid dalam PdPc",
+          "b) Mengawasi perlakuan murid dalam PdPc",
+          "c) Menyusun atur kedudukan murid",
+          "d) Melaksanakan aktiviti pembelajaran yang menyeronokkan"
+        ]
+      },
+      { kod:"4.3.1", tajuk:"Guru membimbing murid", wajaran:15,
+        tindakan:[
+          "a) Memberi tunjuk ajar/tunjuk cara/panduan menguasai isi pelajaran/konsep/fakta berkaitan pelajaran",
+          "b) Memberi tunjuk ajar/tunjuk cara/panduan menguasai kemahiran dalam aktiviti pembelajaran",
+          "c) Memandu murid membuat keputusan dan menyelesaikan masalah dalam aktiviti pembelajaran",
+          "d) Memandu murid menggunakan/memanfaatkan sumber Pendidikan berkaitan pelajaran",
+          "e) Menggabung/merentas/mengaitkan isi pelajaran dengan tajuk/unit/tema/nilai/kemahiran/mata pelajaran lain dalam aktiviti pembelajaran"
+        ]
+      },
+      { kod:"4.4.1", tajuk:"Guru mendorong minda murid", wajaran:25,
+        tindakan:[
+          "a) Merangsang murid berkomunikasi",
+          "b) Merangsang murid berkolaboratif dalam aktiviti pembelajaran",
+          "c) Mengemukakan soalan yang menjurus ke arah pemikiran kritis dan kreatif",
+          "d) Mengajukan soalan/mewujudkan situasi yang menjurus ke arah membuat keputusan dan menyelesaikan masalah",
+          "e) Mewujudkan peluang untuk murid memimpin",
+          "f) Menggalakkan murid mengemukakan soalan berkaitan isi pelajaran",
+          "g) Menggalakkan murid memperoleh pengetahuan dan kemahiran secara kendiri"
+        ]
+      },
+      { kod:"4.4.2", tajuk:"Guru mendorong emosi murid", wajaran:5,
+        tindakan:[
+          "a) Memberi pujian/galakan terhadap perlakuan positif",
+          "b) Memberi penghargaan terhadap hasil kerja/idea yang bernas",
+          "c) Memberi keyakinan dalam mengemukakan soalan/memberi respons",
+          "d) Prihatin terhadap keperluan murid"
+        ]
+      },
+      { kod:"4.5.1", tajuk:"Guru melaksanakan penilaian", wajaran:10,
+        tindakan:[
+          "a) Menggunakan pelbagai kaedah pentaksiran dalam PdPc",
+          "b) Menjalankan aktiviti pemulihan/pengayaan dalam PdPc",
+          "c) Memberi latihan/tugasan berkaitan pelajaran",
+          "d) Membuat refleksi PdPc",
+          "e) Menyemak/menilai hasil kerja/gerak kerja/latihan/tugasan"
+        ]
+      },
+      { kod:"4.6.1", tajuk:"Murid melibatkan diri (Pembelajaran Aktif)", wajaran:20,
+        tindakan:[
+          "a) Memberi respons berkaitan isi pelajaran",
+          "b) Berkomunikasi dalam melaksanakan aktiviti pembelajaran",
+          "c) Melaksanakan aktiviti pembelajaran secara kolaboratif",
+          "d) Memberi respons yang menjurus ke arah pemikiran kritis dan kreatif berkaitan isi pelajaran",
+          "e) Mengemukakan soalan berkaitan isi pelajaran",
+          "f) Mengaitkan isi pelajaran dengan kehidupan murid/isu lokal/global",
+          "g) Membuat keputusan menyelesaikan masalah berkaitan aktiviti pembelajaran"
+        ]
+      }
+    ];
+
+    // ===================== RUBRIK PENDIDIKAN KHAS (GPKhas) =====================
+    const RUBRIK_KHAS = [
+      { kod:"4.1.1", tajuk:"GPKhas bertindak sebagai perancang", wajaran:10,
+        tindakan:[
+          "a) Menyediakan RPH yang mengandungi objektif yang boleh diukur dan aktiviti pembelajaran yang sesuai mengikut pelbagai tahap kebolehan/ketidakupayaan MBPK",
+          "b) Menentukan kaedah pentaksiran mengikut pelbagai tahap kebolehan/ketidakupayaan MBPK",
+          "c) Menyediakan ABM/BBM/BBB/TMK/Alat Sokongan mengikut pelbagai tahap kebolehan/ketidakupayaan MBPK"
+        ]
+      },
+      { kod:"4.2.1", tajuk:"GPKhas mengawal proses pembelajaran", wajaran:10,
+        tindakan:[
+          "a) Mengelola isi pelajaran/skop pembelajaran yang dirancang mengikut pelbagai tahap kebolehan/ketidakupayaan MBPK",
+          "b) Mengelola masa PdPc selaras dengan aktiviti pembelajaran MBPK",
+          "c) Memberi peluang kepada penyertaan aktif MBPK"
+        ]
+      },
+      { kod:"4.2.2", tajuk:"GPKhas mengawal suasana pembelajaran", wajaran:5,
+        tindakan:[
+          "a) Mengawasi komunikasi MBPK dalam PdPc secara berhemah dan menyeluruh",
+          "b) Mengawasi perlakuan MBPK dalam PdPc secara berhemah dan menyeluruh",
+          "c) Menyusun atur kedudukan MBPK mengikut kesesuaian dan keperluan",
+          "d) Melaksanakan aktiviti pembelajaran yang menyeronokkan mengikut kesesuaian dan keperluan MBPK"
+        ]
+      },
+      { kod:"4.3.1", tajuk:"GPKhas membimbing MBPK", wajaran:15,
+        tindakan:[
+          "a) Memberi tunjuk ajar/tunjuk cara/panduan menguasai isi pelajaran/konsep/fakta berkaitan pelajaran mengikut pelbagai tahap kebolehan/ketidakupayaan MBPK",
+          "b) Memberi tunjuk ajar/tunjuk cara/panduan menguasai kemahiran dalam aktiviti pembelajaran mengikut pelbagai tahap kebolehan/ketidakupayaan MBPK",
+          "c) Membimbing MBPK membuat keputusan dan menyelesaikan masalah dalam aktiviti pembelajaran",
+          "d) Membimbing MBPK menggunakan/memanfaatkan sumber pendidikan berkaitan pelajaran",
+          "e) Menggabung/merentas/mengaitkan isi pelajaran dengan tajuk/unit/tema/nilai/kemahiran/mata pelajaran lain mengikut keperluan dan keupayaan MBPK"
+        ]
+      },
+      { kod:"4.4.1", tajuk:"GPKhas mendorong minda MBPK", wajaran:25,
+        tindakan:[
+          "a) Merangsang MBPK berkomunikasi/bertindak balas dengan memberi reaksi (visual/auditori/kinestetik/sensorimotor) dalam melaksanakan aktiviti pembelajaran",
+          "b) Merangsang MBPK berkolaboratif dalam aktiviti pembelajaran mengikut keupayaan dan kesediaan MBPK",
+          "c) Mengemukakan soalan kepada MBPK untuk berfikir secara logik/mengemukakan idea yang kreatif/kritis mengikut kemampuan/keupayaan",
+          "d) Mengajukan soalan/mewujudkan situasi yang menjurus ke arah MBPK membuat keputusan/menyelesaikan masalah",
+          "e) Mewujudkan peluang untuk MBPK memimpin dalam aktiviti pembelajaran",
+          "f) Menggalakkan/merangsang MBPK mengemukakan soalan mudah berkaitan isi pelajaran mengikut tahap keupayaan MBPK (lisan/gambar/tulisan ringkas/bahasa isyarat/alat bantuan komunikasi)",
+          "g) Menggalakkan MBPK memperoleh pengetahuan dan kemahiran secara kendiri"
+        ]
+      },
+      { kod:"4.4.2", tajuk:"GPKhas mendorong emosi MBPK", wajaran:5,
+        tindakan:[
+          "a) Memberi pujian/galakan terhadap perlakuan positif MBPK",
+          "b) Memberi penghargaan terhadap hasil kerja/idea yang bermakna",
+          "c) Memberi keyakinan kepada MBPK dalam mengemukakan soalan/memberi respons",
+          "d) Prihatin terhadap keperluan semasa MBPK"
+        ]
+      },
+      { kod:"4.5.1", tajuk:"GPKhas melaksanakan penilaian MBPK", wajaran:10,
+        tindakan:[
+          "a) Menggunakan pelbagai kaedah pentaksiran dalam PdPc MBPK mengikut ketetapan pelaksanaan pentaksiran/ketetapan kurikulum Pendidikan Khas",
+          "b) Menjalankan aktiviti pemulihan/pengayaan dalam PdPc MBPK secara menyeluruh dan berterusan",
+          "c) Memberi latihan/tugasan berkaitan pelajaran MBPK",
+          "d) Membuat refleksi PdPc MBPK",
+          "e) Menyemak/menilai hasil kerja/gerak kerja/latihan/tugasan MBPK"
+        ]
+      },
+      { kod:"4.6.1", tajuk:"MBPK melibatkan diri (Pembelajaran Aktif)", wajaran:20,
+        tindakan:[
+          "a) Memberi respons/kerjasama berkaitan isi pelajaran (tindak balas MBPK dalam bentuk verbal, non-verbal, emosi, fizikal/tingkah laku)",
+          "b) Berkomunikasi/bertindak balas dengan reaksi visual/auditori/kinestetik/sensori motor/penggunaan bahasa isyarat dalam melaksanakan aktiviti pembelajaran",
+          "c) Melaksanakan aktiviti pembelajaran secara kolaboratif mengikut keupayaan dan kesediaan MBPK",
+          "d) MBPK berfikir secara logik/mengemukakan idea yang kreatif/kritis mengikut kemampuan/keupayaan",
+          "e) Mengemukakan soalan mudah berkaitan isi pelajaran mengikut tahap keupayaan MBPK (lisan/gambar/tulisan ringkas/bahasa isyarat/alat bantuan komunikasi)",
+          "f) Mengaitkan isi pelajaran dengan kehidupan harian MBPK",
+          "g) Menyelesaikan masalah/tugas/latihan berkaitan aktiviti pembelajaran"
+        ]
+      }
+    ];
+
+    const getRubrik = (kategori) =>
+      (kategori||'').toUpperCase() === 'GPK PENDIDIKAN KHAS' ? RUBRIK_KHAS : RUBRIK;
+
+    const ADMIN_PASSWORD = "skpkcba4082";
+    const ADMIN_PIN = "1212";
+
+    const tarafInfo = s => {
+      if(s>=85) return {label:'CEMERLANG',cls:'badge-cemerlang'};
+      if(s>=70) return {label:'BAIK',cls:'badge-baik'};
+      if(s>=55) return {label:'SEDERHANA',cls:'badge-sederhana'};
+      return {label:'PERLU TINDAKAN',cls:'badge-perlu'};
+    };
+
+    // ===================== TOAST SYSTEM =====================
+    function useToast() {
+      const [toasts, setToasts] = useState([]);
+      const showToast = (msg, type='success') => {
+        const id = Date.now() + Math.random();
+        setToasts(prev => [...prev, {id, msg, type}]);
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+      };
+      return {toasts, showToast};
+    }
+
+    function ToastContainer({toasts}) {
+      const icons = {success:'fa-check-circle',error:'fa-times-circle',warning:'fa-exclamation-triangle',info:'fa-info-circle'};
+      const colors = {
+        success:'bg-green-600',error:'bg-red-600',
+        warning:'bg-amber-500',info:'bg-blue-600'
+      };
+      return (
+        <div className="fixed top-4 right-4 z-[200] space-y-2 pointer-events-none" style={{maxWidth:'320px'}}>
+          {toasts.map(t => (
+            <div key={t.id} className={`slide-in-right flex items-start gap-3 px-4 py-3 rounded-2xl text-white shadow-xl text-sm font-semibold ${colors[t.type]||colors.info}`}>
+              <i className={`fas ${icons[t.type]||icons.info} mt-0.5 shrink-0`}></i>
+              <span className="leading-snug">{t.msg}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // ===================== CONFIRM MODAL =====================
+    function ConfirmModal({message, subMessage, confirmLabel='Sahkan', danger=false, onConfirm, onCancel}) {
+      return (
+        <div className="fixed inset-0 bg-black/60 modal-bg z-[150] flex items-center justify-center p-4 fade-in">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden scale-in">
+            <div className={`px-5 pt-6 pb-4 text-center`}>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 ${danger?'bg-red-100':'bg-blue-50'}`}>
+                <i className={`fas ${danger?'fa-trash-alt text-red-500':'fa-question-circle text-blue-500'} text-xl`}></i>
+              </div>
+              <h3 className="font-extrabold text-gray-800 text-base">{message}</h3>
+              {subMessage && <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{subMessage}</p>}
+            </div>
+            <div className="flex gap-3 px-5 pb-5">
+              <button onClick={onCancel} className="flex-1 py-3 border-2 border-gray-200 text-gray-600 font-bold text-sm rounded-xl hover:bg-gray-50 transition-colors">Batal</button>
+              <button onClick={onConfirm} className={`flex-1 py-3 text-white font-extrabold text-sm rounded-xl transition-colors ${danger?'bg-red-500 hover:bg-red-600':'bg-[#1e40af] hover:bg-[#1e3a8a]'}`}>{confirmLabel}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ===================== ADMIN AUTH MODAL =====================
+    function AdminAuthModal({onSuccess, onCancel}) {
+      const [tab, setTab] = useState('password');
+      const [pwVal, setPwVal] = useState('');
+      const [showPw, setShowPw] = useState(false);
+      const [pinVal, setPinVal] = useState('');
+      const [error, setError] = useState('');
+      const [shakeKey, setShakeKey] = useState(0);
+      const pwRef = useRef(null);
+
+      useEffect(() => {
+        if(tab==='password' && pwRef.current) pwRef.current.focus();
+        setError(''); setPwVal(''); setPinVal('');
+      }, [tab]);
+
+      const triggerShake = () => {
+        setShakeKey(k=>k+1);
+        setError(tab==='password'?'Kata laluan tidak sah.':'PIN tidak sah.');
+        if(tab==='pin') setPinVal('');
+      };
+
+      const checkPassword = () => { if(pwVal===ADMIN_PASSWORD) onSuccess(); else triggerShake(); };
+
+      const handlePinDigit = (d) => {
+        if(pinVal.length>=4) return;
+        const next = pinVal+d;
+        setPinVal(next);
+        if(next.length===4) setTimeout(() => { if(next===ADMIN_PIN) onSuccess(); else triggerShake(); }, 150);
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/60 modal-bg z-50 flex items-center justify-center p-4 fade-in">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden scale-in">
+            <div className="bg-gradient-to-r from-[#0a1740] to-[#1e40af] px-5 py-5 text-white text-center">
+              <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <i className="fas fa-user-shield text-xl"></i>
+              </div>
+              <h3 className="font-extrabold text-base">Pengesahan Pentadbir</h3>
+              <p className="text-blue-200 text-xs mt-1">Masukkan kata laluan atau PIN untuk akses</p>
+            </div>
+            <div className="flex border-b border-gray-100 px-4 pt-3">
+              <button onClick={()=>setTab('password')} className={`flex-1 pb-3 text-sm font-bold flex items-center justify-center gap-2 auth-tab ${tab==='password'?'active text-[#1e40af]':'text-gray-400'}`}>
+                <i className="fas fa-key text-xs"></i> Kata Laluan
+              </button>
+              <button onClick={()=>setTab('pin')} className={`flex-1 pb-3 text-sm font-bold flex items-center justify-center gap-2 auth-tab ${tab==='pin'?'active text-[#1e40af]':'text-gray-400'}`}>
+                <i className="fas fa-hashtag text-xs"></i> PIN
+              </button>
+            </div>
+            <div className="p-5" key={shakeKey}>
+              {tab==='password' && (
+                <div className={`fade-in ${error?'shake':''}`}>
+                  <p className="text-xs text-gray-500 mb-3 font-semibold">Masukkan kata laluan pentadbir:</p>
+                  <div className="pw-input-wrap mb-3">
+                    <input ref={pwRef} type={showPw?'text':'password'} value={pwVal}
+                      onChange={e=>{setPwVal(e.target.value);setError('');}}
+                      onKeyDown={e=>{if(e.key==='Enter') checkPassword();}}
+                      placeholder="Kata laluan"
+                      className={`w-full border-2 rounded-xl px-4 py-3 text-sm font-bold pr-12 transition-all ${error?'border-red-300 bg-red-50':'border-gray-200'}`}/>
+                    <span className="pw-toggle" onClick={()=>setShowPw(s=>!s)}>
+                      <i className={`fas ${showPw?'fa-eye-slash':'fa-eye'} text-sm`}></i>
+                    </span>
+                  </div>
+                  {error && <p className="text-xs text-red-500 font-bold mb-3 flex items-center gap-1"><i className="fas fa-exclamation-circle"></i> {error}</p>}
+                  <div className="flex gap-2">
+                    <button onClick={onCancel} className="flex-1 py-3 border-2 border-gray-200 text-gray-500 text-sm font-bold rounded-xl">Batal</button>
+                    <button onClick={checkPassword} className="flex-1 py-3 bg-[#1e40af] hover:bg-[#1e3a8a] text-white text-sm font-extrabold rounded-xl transition-colors">Masuk</button>
+                  </div>
+                </div>
+              )}
+              {tab==='pin' && (
+                <div className={`fade-in ${error?'shake':''}`}>
+                  <p className="text-xs text-gray-500 mb-4 text-center font-semibold">Masukkan PIN 4 digit:</p>
+                  <div className="flex justify-center gap-4 mb-2">
+                    {[0,1,2,3].map(i=>(
+                      <div key={i} className={`pin-dot w-4 h-4 rounded-full border-2 ${pinVal.length>i?'border-[#1e40af] filled':'border-gray-300 bg-gray-100'}`}></div>
+                    ))}
+                  </div>
+                  {error && <p className="text-xs text-red-500 font-bold mb-3 text-center flex items-center justify-center gap-1"><i className="fas fa-exclamation-circle"></i> {error}</p>}
+                  <div className="grid grid-cols-3 gap-2 mt-4">
+                    {[1,2,3,4,5,6,7,8,9].map(n=>(
+                      <button key={n} onClick={()=>handlePinDigit(n.toString())}
+                        className="pin-btn bg-gray-50 border border-gray-200 rounded-xl py-4 text-lg font-extrabold text-gray-700 hover:bg-blue-50 hover:border-blue-200 hover:text-[#1e40af]">{n}</button>
+                    ))}
+                    <button onClick={onCancel} className="pin-btn bg-gray-50 border border-gray-200 rounded-xl py-4 text-sm font-bold text-gray-400 hover:bg-red-50 hover:text-red-500"><i className="fas fa-times"></i></button>
+                    <button onClick={()=>handlePinDigit('0')} className="pin-btn bg-gray-50 border border-gray-200 rounded-xl py-4 text-lg font-extrabold text-gray-700 hover:bg-blue-50 hover:text-[#1e40af]">0</button>
+                    <button onClick={()=>setPinVal(p=>p.slice(0,-1))} className="pin-btn bg-gray-50 border border-gray-200 rounded-xl py-4 text-lg font-bold text-gray-500 hover:bg-gray-100"><i className="fas fa-delete-left"></i></button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ===================== APP =====================
+    function App() {
+      const {toasts, showToast} = useToast();
+      const [role, setRole] = useState(null);
+      const [view, setView] = useState('dashboard');
+      const [sidebarOpen, setSidebarOpen] = useState(false);
+      const [submissions, setSubmissions] = useState([]);
+      const [copyData, setCopyData] = useState(null);
+      const [isLoading, setIsLoading] = useState(false);
+      const [uploadRecord, setUploadRecord] = useState(null);
+      const [viewRecord, setViewRecord] = useState(null);
+      const [showAdminAuth, setShowAdminAuth] = useState(false);
+      const [confirmDelete, setConfirmDelete] = useState(null);
+      const currentYear = new Date().getFullYear();
+
+      useEffect(() => { if(role && view==='dashboard') fetchData(); }, [role, view]);
+
+      const fetchData = () => {
+        setIsLoading(true);
+        google.script.run
+          .withSuccessHandler(d => { setSubmissions(JSON.parse(d)); setIsLoading(false); })
+          .withFailureHandler(() => { showToast('Gagal memuatkan data.','error'); setIsLoading(false); })
+          .getSubmissionsData();
+      };
+
+      // handleSave pulangkan Promise supaya EvaluationForm boleh await dengan betul
+      const handleSave = (fd, skorItem, itemScores) => {
+        return new Promise((resolve, reject) => {
+          const {label: taraf} = tarafInfo(fd.skor);
+          const payload = {
+            action:"new_submission", id:newId(), ...fd,
+            nama:(fd.nama||'').toUpperCase().trim(),
+            subjek:(fd.subjek||'').toUpperCase().trim(),
+            kelas:(fd.kelas||'').toUpperCase().trim(),
+            pentadbir:(fd.pentadbir||'').toUpperCase().trim(),
+            kategori:(fd.kategori||'').toUpperCase().trim(),
+            sesi:(fd.sesi||'').toUpperCase().trim(),
+            taraf, details:skorItem, itemScores
+          };
+          google.script.run
+            .withSuccessHandler(r => {
+              const res = JSON.parse(r);
+              if(res.status==="berjaya") {
+                showToast('Rekod berjaya disimpan!','success');
+                setView('dashboard');
+                resolve();
+              } else {
+                showToast('Ralat: '+res.mesej,'error');
+                reject();
+              }
+            })
+            .withFailureHandler(() => { showToast('Gagal menghubungi pelayan.','error'); reject(); })
+            .saveSubmissionData(JSON.stringify(payload));
+        });
+      };
+
+      const doDelete = (id) => {
+        setIsLoading(true);
+        google.script.run
+          .withSuccessHandler(r => {
+            const res = JSON.parse(r);
+            if(res.status==="berjaya") {
+              setSubmissions(p=>p.filter(i=>i.id!==id));
+              showToast('Rekod berjaya dipadam.','success');
+            } else {
+              showToast('Ralat: '+res.mesej,'error');
+            }
+            setIsLoading(false);
+          })
+          .withFailureHandler(() => { showToast('Gagal menghubungi pelayan.','error'); setIsLoading(false); })
+          .deleteSubmissionData(id);
+      };
+
+      if(!role) return (
+        <>
+          <LoginScreen onLoginGuru={()=>setRole('guru')} onLoginAdmin={()=>setShowAdminAuth(true)} year={currentYear}/>
+          {showAdminAuth && <AdminAuthModal onSuccess={()=>{setShowAdminAuth(false);setRole('admin');}} onCancel={()=>setShowAdminAuth(false)}/>}
+          <ToastContainer toasts={toasts}/>
+        </>
+      );
+
+      const navTo = (v) => { setView(v); setSidebarOpen(false); };
+
+      return (
+        <div className="min-h-screen bg-[#f0f2f7]">
+          {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden modal-bg" onClick={()=>setSidebarOpen(false)}/>}
+
+          <aside className={`sidebar fixed top-0 left-0 h-full w-64 bg-gradient-to-b from-[#0a1740] to-[#1a3494] text-white z-40 flex flex-col ${sidebarOpen?'translate-x-0':'-translate-x-full'} lg:translate-x-0`}>
+            <div className="px-5 py-5 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                  <i className="fas fa-clipboard-check text-white text-sm"></i>
+                </div>
+                <div>
+                  <div className="font-extrabold text-white text-sm">Pre-SK@S</div>
+                  <div className="text-[10px] text-blue-300 font-semibold tracking-widest uppercase">Sistem Penilaian PdPc</div>
+                </div>
+              </div>
+              <button onClick={()=>setSidebarOpen(false)} className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/70"><i className="fas fa-times"></i></button>
+            </div>
+            <div className="px-4 py-5 flex-1">
+              <p className="text-[9px] font-bold text-blue-400 tracking-widest uppercase px-2 mb-2">Menu</p>
+              <nav className="space-y-1">
+                <button onClick={()=>navTo('dashboard')} className={`w-full text-left flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition-all ${view==='dashboard'?'bg-white/18 text-white':'text-blue-200 hover:bg-white/10 hover:text-white'}`}>
+                  <i className="fas fa-th-large w-4 text-center text-xs"></i> Halaman Utama
+                </button>
+                {role==='guru' && (
+                  <button onClick={()=>{setCopyData(null);navTo('form');}} className={`w-full text-left flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition-all ${view==='form'?'bg-white/18 text-white':'text-blue-200 hover:bg-white/10 hover:text-white'}`}>
+                    <i className="fas fa-plus-circle w-4 text-center text-xs"></i> Borang Baru
+                  </button>
+                )}
+              </nav>
+              <div className="mt-6 px-2">
+                <p className="text-[9px] font-bold text-blue-400 tracking-widest uppercase mb-3">Sesi Semasa</p>
+                <div className="bg-white/8 border border-white/10 rounded-xl px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0 ${role==='admin'?'bg-blue-400/25 text-blue-200':'bg-emerald-400/25 text-emerald-200'}`}>
+                      <i className={`fas ${role==='admin'?'fa-user-shield':'fa-chalkboard-teacher'}`}></i>
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white">{role==='admin'?'Pentadbir':'Guru'}</div>
+                      <div className="text-[10px] text-blue-300">{role==='admin'?'PP1 / PP2':'Rekod Kendiri'}</div>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-blue-400 border-t border-white/10 pt-2">Sesi Akademik {currentYear}</div>
+                </div>
+              </div>
+            </div>
+            <div className="px-4 py-4 border-t border-white/10">
+              <button onClick={()=>{setRole(null);setView('dashboard');setSidebarOpen(false);}} className="w-full flex items-center gap-2.5 px-3 py-3 text-sm text-red-300 hover:text-white hover:bg-red-500/20 rounded-xl transition-all font-semibold">
+                <i className="fas fa-sign-out-alt text-xs w-4 text-center"></i> Log Keluar
+              </button>
+            </div>
+          </aside>
+
+          <div className="lg:ml-64 flex flex-col min-h-screen">
+            <header className="bg-white border-b border-gray-100 h-14 flex items-center px-4 lg:px-7 justify-between sticky top-0 z-20 shadow-sm">
+              <div className="flex items-center gap-3">
+                <button onClick={()=>setSidebarOpen(true)} className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-600 transition-colors"><i className="fas fa-bars"></i></button>
+                <div>
+                  <h1 className="font-extrabold text-gray-800 text-sm leading-tight">{view==='dashboard'?'Halaman Utama':'Borang Penilaian'}</h1>
+                  <p className="text-[11px] text-gray-400 hidden sm:block">e-SK@S Standard 4 · Sesi {currentYear}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {role==='guru' && view==='dashboard' && (
+                  <button onClick={()=>{setCopyData(null);setView('form');}} className="lg:hidden bg-[#1e40af] text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                    <i className="fas fa-plus text-xs"></i> Baru
+                  </button>
+                )}
+                <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${role==='admin'?'bg-blue-50 text-blue-700':'bg-emerald-50 text-emerald-700'}`}>
+                  <i className={`fas ${role==='admin'?'fa-user-shield':'fa-chalkboard-teacher'} mr-1`}></i>
+                  <span className="hidden sm:inline">{role==='admin'?'Pentadbir':'Guru'}</span>
+                </span>
+              </div>
+            </header>
+
+            <main className="flex-1 p-4 lg:p-7 fade-up">
+              {view==='dashboard'
+                ? <Dashboard role={role} submissions={submissions} isLoading={isLoading}
+                    onAddnew={()=>{setCopyData(null);setView('form');}}
+                    onCopy={r=>{setCopyData(r);setView('form');}}
+                    onUploadLater={r=>setUploadRecord(r)}
+                    onView={r=>setViewRecord(r)}
+                    onDelete={id=>setConfirmDelete(id)}
+                    onRefresh={fetchData}
+                    showToast={showToast}/>
+                : <EvaluationForm onCancel={()=>setView('dashboard')} initialData={copyData} onSave={handleSave} showToast={showToast}/>
+              }
+            </main>
+          </div>
+
+          {uploadRecord && <UploadModal record={uploadRecord} onClose={()=>setUploadRecord(null)} onSuccess={()=>{setUploadRecord(null);fetchData();showToast('Fail berjaya dimuat naik.','success');}} showToast={showToast}/>}
+          {viewRecord && <ViewModal record={viewRecord} onClose={()=>setViewRecord(null)}/>}
+
+          {confirmDelete && (
+            <ConfirmModal
+              message="Padam rekod ini?"
+              subMessage="Tindakan ini tidak boleh dibatalkan."
+              confirmLabel="Ya, Padam"
+              danger={true}
+              onConfirm={()=>{doDelete(confirmDelete);setConfirmDelete(null);}}
+              onCancel={()=>setConfirmDelete(null)}
+            />
+          )}
+
+          <ToastContainer toasts={toasts}/>
+        </div>
+      );
+    }
+
+    // ===================== LOGIN =====================
+    function LoginScreen({onLoginGuru, onLoginAdmin, year}) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-[#e4e9f7] via-[#f0f2f7] to-[#e0e8f5] flex items-center justify-center p-5 relative overflow-hidden">
+          <div style={{position:'absolute',top:'-60px',left:'-60px',width:'300px',height:'300px',background:'rgba(59,130,246,0.1)',borderRadius:'50%',filter:'blur(50px)',pointerEvents:'none'}}></div>
+          <div style={{position:'absolute',bottom:'-60px',right:'-60px',width:'300px',height:'300px',background:'rgba(99,102,241,0.1)',borderRadius:'50%',filter:'blur(50px)',pointerEvents:'none'}}></div>
+          <div className="relative w-full max-w-sm fade-up">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1e40af] to-[#3b82f6] shadow-xl shadow-blue-200/50 mb-5">
+                <i className="fas fa-clipboard-check text-white text-2xl"></i>
+              </div>
+              <h1 className="text-2xl font-extrabold text-gray-900 mb-2 tracking-tight">Sistem Penilaian Pre-SK@S</h1>
+              <p className="text-gray-500 text-sm leading-relaxed">Sila pilih peranan anda untuk log masuk ke sistem</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={onLoginAdmin} className="role-card admin bg-white rounded-2xl p-6 text-center cursor-pointer group">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-100 transition-colors">
+                  <i className="fas fa-user-shield text-xl text-blue-700"></i>
+                </div>
+                <div className="font-extrabold text-gray-800 mb-0.5">Pentadbir</div>
+                <div className="text-gray-400 text-xs font-medium">Papar &amp; Pantau Semua</div>
+                <div className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg"><i className="fas fa-lock text-[9px]"></i> Dilindungi</div>
+              </button>
+              <button onClick={onLoginGuru} className="role-card guru bg-white rounded-2xl p-6 text-center cursor-pointer group">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-3 group-hover:bg-emerald-100 transition-colors">
+                  <i className="fas fa-chalkboard-teacher text-xl text-emerald-600"></i>
+                </div>
+                <div className="font-extrabold text-gray-800 mb-0.5">Guru</div>
+                <div className="text-gray-400 text-xs font-medium">Isi Rekod Kendiri</div>
+                <div className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg"><i className="fas fa-unlock text-[9px]"></i> Terus Masuk</div>
+              </button>
+            </div>
+            <p className="text-center text-xs text-gray-400 mt-6">Pre-SK@S &copy; az=R</p>
+          </div>
+        </div>
+      );
+    }
+
+    // ===================== DASHBOARD =====================
+    function Dashboard({role, submissions, isLoading, onAddnew, onCopy, onUploadLater, onView, onDelete, onRefresh, showToast}) {
+      const currentYear = new Date().getFullYear();
+      const [filterTahun, setFilterTahun] = useState(currentYear.toString());
+      const [filterPenilai, setFilterPenilai] = useState('');
+      const [filterKategori, setFilterKategori] = useState('');
+      const [searchNama, setSearchNama] = useState('');
+
+      const availableYears = [...new Set([currentYear.toString(), ...submissions.map(i=>(i.tahun||currentYear).toString())])].sort((a,b)=>b-a);
+
+      let data = submissions;
+      if(filterTahun) data = data.filter(i=>(i.tahun||currentYear).toString()===filterTahun);
+      if(role==='admin' && filterPenilai) data = data.filter(i=>i.pentadbir===filterPenilai);
+      if(filterKategori) data = data.filter(i=>(i.kategori||'')===filterKategori);
+      if(searchNama.trim()) data = data.filter(i=>i.nama.toLowerCase().includes(searchNama.trim().toLowerCase()));
+
+      const avg = data.length ? (data.reduce((a,b)=>a+b.skor,0)/data.length).toFixed(1) : '0.0';
+      const cCemerlang = data.filter(i=>i.skor>=85).length;
+      const cBaik = data.filter(i=>i.skor>=70&&i.skor<85).length;
+      const cSederhana = data.filter(i=>i.skor>=55&&i.skor<70).length;
+      const cPerlu = data.filter(i=>i.skor<55).length;
+
+      const statCards = [
+        {label:'Jumlah Rekod', val:data.length, icon:'fa-layer-group', cls:'bg-blue-50 text-blue-600'},
+        {label:'Purata Skor', val:avg+'%', icon:'fa-chart-line', cls:'bg-violet-50 text-violet-600'},
+        {label:'Cemerlang ≥85', val:cCemerlang, icon:'fa-star', cls:'bg-emerald-50 text-emerald-600'},
+        {label:'Baik 70–84', val:cBaik, icon:'fa-thumbs-up', cls:'bg-blue-50 text-blue-600'},
+        {label:'Sederhana 55–69', val:cSederhana, icon:'fa-minus-circle', cls:'bg-amber-50 text-amber-600'},
+        {label:'Perlu Tindakan', val:cPerlu, icon:'fa-exclamation-circle', cls:'bg-red-50 text-red-500'},
+      ];
+
+      return (
+        <div className="space-y-4 lg:space-y-6">
+          {/* Stat Cards — 6 cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {statCards.map((s,i)=>(
+              <div key={i} className="bg-white rounded-2xl p-3 lg:p-4 shadow-sm border border-gray-100 flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${s.cls}`}>
+                  <i className={`fas ${s.icon} text-sm`}></i>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xl font-extrabold text-gray-800 leading-none mono">{s.val}</div>
+                  <div className="text-[10px] text-gray-400 font-medium mt-0.5 leading-tight">{s.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-4 lg:px-6 py-4 border-b border-gray-100">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="font-extrabold text-gray-800">Rekod Penilaian</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">{role==='admin'?'Semua Guru':'Rekod Kendiri'} · {filterTahun||'Semua Tahun'}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Refresh button */}
+                    <button onClick={onRefresh} disabled={isLoading} title="Muat Semula"
+                      className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-50 border border-gray-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 text-gray-400 transition-colors disabled:opacity-50">
+                      <i className={`fas fa-rotate-right text-xs ${isLoading?'fa-spin':''}`}></i>
+                    </button>
+                    {role==='guru' && (
+                      <button onClick={onAddnew} className="hidden lg:flex bg-[#1e40af] hover:bg-[#1e3a8a] text-white px-4 py-2 rounded-xl text-sm font-bold items-center gap-2 transition-colors shadow-sm">
+                        <i className="fas fa-plus text-xs"></i> Borang Baru
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filter row */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Search */}
+                  <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 flex-1 min-w-[160px]">
+                    <i className="fas fa-search text-gray-400 text-xs shrink-0"></i>
+                    <input type="text" placeholder="Cari nama guru..." value={searchNama} onChange={e=>setSearchNama(e.target.value)}
+                      className="text-xs text-gray-700 bg-transparent font-semibold border-none outline-none w-full placeholder-gray-400"/>
+                    {searchNama && <button onClick={()=>setSearchNama('')} className="text-gray-300 hover:text-gray-500 shrink-0"><i className="fas fa-times text-xs"></i></button>}
+                  </div>
+                  {/* Tahun */}
+                  <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                    <i className="fas fa-calendar-alt text-gray-400 text-xs"></i>
+                    <select value={filterTahun} onChange={e=>setFilterTahun(e.target.value)} className="text-xs text-gray-700 bg-transparent font-bold border-none outline-none cursor-pointer">
+                      <option value="">Semua Tahun</option>
+                      {availableYears.map(y=><option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
+                  {/* Kategori */}
+                  <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                    <i className="fas fa-filter text-gray-400 text-xs"></i>
+                    <select value={filterKategori} onChange={e=>setFilterKategori(e.target.value)} className="text-xs text-gray-700 bg-transparent font-bold border-none outline-none cursor-pointer">
+                      <option value="">Semua Kategori</option>
+                      <option value="GURU">GURU BIASA</option>
+                      <option value="GPK PENDIDIKAN KHAS">GPK PENDIDIKAN KHAS</option>
+                    </select>
+                  </div>
+                  {/* Penilai (admin sahaja) */}
+                  {role==='admin' && (
+                    <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                      <i className="fas fa-user-check text-gray-400 text-xs"></i>
+                      <select value={filterPenilai} onChange={e=>setFilterPenilai(e.target.value)} className="text-xs text-gray-700 bg-transparent font-bold border-none outline-none cursor-pointer">
+                        <option value="">Semua Penilai</option>
+                        <option value="GURU BESAR / PENGETUA">GB / PENGETUA</option>
+                        <option value="GPK PENTADBIRAN">GPK PENTADBIRAN</option>
+                        <option value="GPK HEM">GPK HEM</option>
+                        <option value="GPK KOKURIKULUM">GPK KOKURIKULUM</option>
+                        <option value="GPK PENDIDIKAN KHAS">GPK KHAS</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {isLoading ? (
+              <div className="py-16 flex flex-col items-center gap-3 text-gray-400">
+                <i className="fas fa-spinner fa-spin text-3xl text-blue-400"></i>
+                <span className="text-sm font-semibold">Memuatkan rekod...</span>
+              </div>
+            ) : data.length===0 ? (
+              <div className="py-16 flex flex-col items-center gap-3">
+                <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-300 text-2xl"><i className="fas fa-inbox"></i></div>
+                <p className="text-gray-400 text-sm font-semibold">{searchNama?'Tiada rekod sepadan carian':'Tiada rekod penilaian'}</p>
+              </div>
+            ) : (
+              <>
+                {/* MOBILE */}
+                <div className="lg:hidden divide-y divide-gray-50">
+                  {data.map((item,idx)=>{
+                    const {label,cls}=tarafInfo(item.skor);
+                    const isKhasRec=(item.kategori||'').toUpperCase()==='GPK PENDIDIKAN KHAS';
+                    return (
+                      <div key={idx} className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="font-bold text-gray-800 text-sm truncate">{item.nama}</div>
+                              {isKhasRec && <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md badge-khas">GPKhas</span>}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-0.5">{item.subjek} · {item.kelas}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{item.tarikh} · {item.sesi||'—'}</div>
+                            <div className="text-xs text-blue-600 font-semibold mt-0.5">{item.pentadbir||'—'}</div>
+                          </div>
+                          <div className="text-center shrink-0">
+                            <div className="mono inline-flex items-center justify-center w-13 h-12 px-2 rounded-xl font-extrabold text-sm bg-blue-50 text-blue-700 border border-blue-100">{fmtSkor(item.skor)}</div>
+                            <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 ${cls}`}>{label}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {item.rphUrl?<a href={item.rphUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-lg"><i className="fas fa-file-pdf text-xs"></i> RPH</a>:<span className="text-gray-300 text-xs">— RPH</span>}
+                          {item.evidenUrl?<a href={item.evidenUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-lg"><i className="fas fa-image text-xs"></i> Eviden</a>:<span className="text-gray-300 text-xs">— Eviden</span>}
+                          {(!item.rphUrl||!item.evidenUrl)&&role==='guru'&&<button onClick={()=>onUploadLater(item)} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 bg-gray-100 border border-gray-200 px-2.5 py-1.5 rounded-lg"><i className="fas fa-upload text-xs"></i> Tambah</button>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={()=>onView(item)} className="flex-1 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold flex items-center justify-center gap-1.5"><i className="fas fa-eye"></i> Lihat</button>
+                          {role==='guru'&&<button onClick={()=>onCopy(item)} className="flex-1 py-2 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-bold flex items-center justify-center gap-1.5"><i className="fas fa-copy"></i> Salin</button>}
+                          <button onClick={()=>onDelete(item.id)} className="flex-1 py-2 rounded-xl bg-red-50 text-red-500 text-xs font-bold flex items-center justify-center gap-1.5"><i className="fas fa-trash-alt"></i> Padam</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* DESKTOP */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50/80 border-b border-gray-100">
+                        {['Tarikh','Guru / Kategori','Subjek / Kelas','Sesi & Penilai','Skor','Fail','Tindakan'].map((h,i)=>(
+                          <th key={i} className={`px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap ${i>=4?'text-center':''}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {data.map((item,idx)=>{
+                        const {label,cls}=tarafInfo(item.skor);
+                        const isKhasRec=(item.kategori||'').toUpperCase()==='GPK PENDIDIKAN KHAS';
+                        return (
+                          <tr key={idx} className="trow transition-colors">
+                            <td className="px-5 py-4 whitespace-nowrap text-xs text-gray-400 font-semibold">{item.tarikh}</td>
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-2">
+                                <div className="font-bold text-gray-800 text-sm">{item.nama}</div>
+                                {isKhasRec&&<span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md badge-khas">GPKhas</span>}
+                              </div>
+                              <div className="text-xs text-gray-400 mt-0.5">{item.kategori}</div>
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="font-semibold text-gray-700">{item.subjek}</div>
+                              <div className="text-xs text-gray-400 mt-0.5">{item.kelas}</div>
+                            </td>
+                            <td className="px-5 py-4">
+                              <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-lg">{item.sesi||'—'}</span>
+                              <div className="text-xs text-blue-600 font-semibold mt-1">{item.pentadbir||'—'}</div>
+                            </td>
+                            <td className="px-5 py-4 text-center">
+                              <div className="mono inline-flex items-center justify-center min-w-[3rem] h-12 px-2 rounded-xl font-extrabold text-sm bg-blue-50 text-blue-700 border border-blue-100">{fmtSkor(item.skor)}</div>
+                              <div className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 ${cls}`}>{label}</div>
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="flex flex-col gap-1.5">
+                                {item.rphUrl?<a href={item.rphUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg w-fit"><i className="fas fa-file-pdf text-xs"></i> RPH</a>:<span className="text-gray-300 text-xs">— RPH</span>}
+                                {item.evidenUrl?<a href={item.evidenUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg w-fit"><i className="fas fa-image text-xs"></i> Eviden</a>:<span className="text-gray-300 text-xs">— Eviden</span>}
+                                {(!item.rphUrl||!item.evidenUrl)&&role==='guru'&&<button onClick={()=>onUploadLater(item)} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 bg-gray-100 hover:bg-gray-200 border border-gray-200 px-2.5 py-1.5 rounded-lg w-fit"><i className="fas fa-upload text-xs"></i> Tambah</button>}
+                              </div>
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button onClick={()=>onView(item)} title="Lihat" className="w-8 h-8 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center"><i className="fas fa-eye text-xs"></i></button>
+                                {role==='guru'&&<button onClick={()=>onCopy(item)} title="Salin" className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 flex items-center justify-center"><i className="fas fa-copy text-xs"></i></button>}
+                                <button onClick={()=>onDelete(item.id)} title="Padam" className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 flex items-center justify-center"><i className="fas fa-trash-alt text-xs"></i></button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ===================== EVALUATION FORM =====================
+    function EvaluationForm({onCancel, onSave, initialData, showToast}) {
+      const [step, setStep] = useState(1);
+      const [submitting, setSubmitting] = useState(false);
+      const [attempted, setAttempted] = useState(false);
+      const [pendingKategori, setPendingKategori] = useState(null);
+      const currentYear = new Date().getFullYear();
+      const topRef = useRef(null);
+
+      const [fd, setFd] = useState({
+        tahun: initialData?.tahun||currentYear.toString(),
+        nama: initialData?.nama||'',
+        pentadbir: initialData?.pentadbir||'',
+        subjek: initialData?.subjek||'',
+        kelas: initialData?.kelas||'',
+        tarikh: new Date().toISOString().split('T')[0],
+        kategori: initialData?.kategori||'',
+        sesi: initialData?.sesi||'',
+        rphBase64:null, rphName:'', rphMimeType:'',
+        evidenBase64:null, evidenName:'', evidenMimeType:''
+      });
+      const [scores, setScores] = useState(initialData?.itemScores||{});
+
+      const isKhas = (fd.kategori||'').toUpperCase()==='GPK PENDIDIKAN KHAS';
+      const activeRubrik = getRubrik(fd.kategori);
+
+      // Kategori change — minta pengesahan jika ada markah sedia ada
+      const handleKategoriChange = (newVal) => {
+        if(newVal !== fd.kategori && Object.keys(scores).length > 0) {
+          setPendingKategori(newVal);
+        } else {
+          setFd(p=>({...p, kategori:newVal}));
+        }
+      };
+
+      const calcScores = () => {
+        let totals = {};
+        activeRubrik.forEach(cat => {
+          let t = 0;
+          cat.tindakan.forEach((_,i)=>t+=(scores[`${cat.kod}-${i}`]||0));
+          const pct = parseFloat(((t/(cat.tindakan.length*4))*100).toFixed(2));
+          totals[`skor${cat.kod.replace(/\./g,'_')}`] = pct;
+        });
+        const final = parseFloat(activeRubrik.reduce((sum,cat)=>{
+          const pct = totals[`skor${cat.kod.replace(/\./g,'_')}`]||0;
+          return sum+(pct*cat.wajaran/100);
+        },0).toFixed(2));
+        return {asp:totals, final};
+      };
+
+      const {asp,final} = calcScores();
+
+      const goStep = (n) => { setStep(n); if(topRef.current) topRef.current.scrollIntoView({behavior:'smooth'}); };
+
+      const handleNext = () => {
+        if(step===1 && !step1Ok) { setAttempted(true); showToast('Sila lengkapkan semua maklumat yang diperlukan.','warning'); return; }
+        goStep(step+1);
+      };
+
+      const handleFile = (e, type) => {
+        const file=e.target.files[0]; if(!file) return;
+        if(file.size>MAX_FILE_BYTES){ showToast(`Fail melebihi had ${MAX_FILE_LABEL}. Sila pilih fail yang lebih kecil.`,'error'); return; }
+        const r=new FileReader();
+        r.onloadend=()=>{ const b64=r.result.split(',')[1];
+          if(type==='rph') setFd(p=>({...p,rphBase64:b64,rphName:file.name,rphMimeType:file.type}));
+          else setFd(p=>({...p,evidenBase64:b64,evidenName:file.name,evidenMimeType:file.type}));
+        };
+        r.readAsDataURL(file);
+      };
+
+      const handleSubmit = async () => {
+        setSubmitting(true);
+        try { await onSave({...fd,skor:final},asp,scores); }
+        finally { setSubmitting(false); }
+      };
+
+      const step1Ok = fd.nama&&fd.pentadbir&&fd.kategori&&fd.subjek&&fd.kelas&&fd.tarikh&&fd.sesi;
+      const totalItems = activeRubrik.reduce((a,c)=>a+c.tindakan.length,0);
+      const scoredCount = Object.keys(scores).length;
+      const rubrikDone = scoredCount===totalItems;
+
+      const inputBase = "w-full border rounded-xl px-3 py-3 text-sm font-semibold text-gray-700 focus:border-blue-400 transition-all bg-white";
+      const inputCls = (val) => `${inputBase} ${attempted&&!val?'input-error border-red-300':'border-gray-200'}`;
+      const labelCls = "block text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1.5";
+
+      return (
+        <div className="max-w-2xl mx-auto" ref={topRef}>
+          {/* Step Indicator */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex items-center">
+            {[{n:1,label:'Profil',icon:'fa-id-card'},{n:2,label:'Penilaian',icon:'fa-chart-bar'},{n:3,label:'Eviden',icon:'fa-paperclip'}].map((s,i,arr)=>(
+              <React.Fragment key={s.n}>
+                <div className="flex items-center gap-2 flex-1">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-xs font-extrabold transition-all ${step>=s.n?'bg-[#1e40af] text-white shadow-md':'bg-gray-100 text-gray-300'}`}>
+                    <i className={`fas ${s.icon}`}></i>
+                  </div>
+                  <div className="hidden sm:block">
+                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Langkah {s.n}</div>
+                    <div className={`text-xs font-bold ${step>=s.n?'text-gray-800':'text-gray-300'}`}>{s.label}</div>
+                  </div>
+                </div>
+                {i<arr.length-1 && <div className="w-6 h-0.5 bg-gray-100 mx-1 relative flex-shrink-0"><div className={`absolute left-0 top-0 h-full bg-[#1e40af] transition-all duration-500 ${step>s.n?'w-full':'w-0'}`}></div></div>}
+              </React.Fragment>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-4 lg:p-6">
+
+              {/* STEP 1 */}
+              {step===1 && (
+                <div className="space-y-4 fade-up">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0"><i className="fas fa-id-card text-sm"></i></div>
+                    <div><h3 className="font-extrabold text-gray-800">Maklumat Asas</h3><p className="text-xs text-gray-400">Lengkapkan profil penilaian</p></div>
+                  </div>
+
+                  {attempted && !step1Ok && (
+                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
+                      <i className="fas fa-exclamation-circle text-red-500 text-xs shrink-0"></i>
+                      <p className="text-xs font-bold text-red-600">Sila isi semua medan yang bertanda merah sebelum meneruskan.</p>
+                    </div>
+                  )}
+
+                  {isKhas && (
+                    <div className="flex items-center gap-2.5 bg-violet-50 border border-violet-200 rounded-xl px-4 py-3">
+                      <i className="fas fa-graduation-cap text-violet-600 text-sm shrink-0"></i>
+                      <div>
+                        <p className="text-xs font-extrabold text-violet-700">Mod Pendidikan Khas (GPKhas) Aktif</p>
+                        <p className="text-[11px] text-violet-500 mt-0.5">Rubrik MBPK akan digunakan untuk penilaian ini</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelCls}>Sesi Akademik</label>
+                      <select value={fd.tahun} onChange={e=>setFd({...fd,tahun:e.target.value})} className={inputBase+" border-gray-200"}>
+                        <option value={currentYear-1}>{currentYear-1}</option>
+                        <option value={currentYear}>{currentYear}</option>
+                        <option value={currentYear+1}>{currentYear+1}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>{isKhas?'Nama GPKhas':'Nama Guru'} <span className="text-red-400">*</span></label>
+                      <input type="text" placeholder="NAMA PENUH" value={fd.nama} onChange={e=>setFd({...fd,nama:e.target.value.toUpperCase()})} className={inputCls(fd.nama)+" uppercase"}/>
+                      {attempted&&!fd.nama&&<p className="text-[10px] text-red-500 mt-1 font-semibold">Nama diperlukan</p>}
+                    </div>
+                    <div>
+                      <label className={labelCls}>Penilai <span className="text-red-400">*</span></label>
+                      <select value={fd.pentadbir} onChange={e=>setFd({...fd,pentadbir:e.target.value})} className={inputCls(fd.pentadbir)}>
+                        <option value="">— Pilih Penilai —</option>
+                        <option value="GURU BESAR / PENGETUA">GURU BESAR / PENGETUA</option>
+                        <option value="GPK PENTADBIRAN">GPK PENTADBIRAN</option>
+                        <option value="GPK HEM">GPK HAL EHWAL MURID</option>
+                        <option value="GPK KOKURIKULUM">GPK KOKURIKULUM</option>
+                        <option value="GPK PENDIDIKAN KHAS">GPK PENDIDIKAN KHAS</option>
+                      </select>
+                      {attempted&&!fd.pentadbir&&<p className="text-[10px] text-red-500 mt-1 font-semibold">Penilai diperlukan</p>}
+                    </div>
+                    <div>
+                      <label className={labelCls}>Tarikh Pencerapan <span className="text-red-400">*</span></label>
+                      <input type="date" value={fd.tarikh} onChange={e=>setFd({...fd,tarikh:e.target.value})} className={inputCls(fd.tarikh)}/>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Mata Pelajaran <span className="text-red-400">*</span></label>
+                      <input type="text" placeholder="MATEMATIK" value={fd.subjek} onChange={e=>setFd({...fd,subjek:e.target.value.toUpperCase()})} className={inputCls(fd.subjek)+" uppercase"}/>
+                      {attempted&&!fd.subjek&&<p className="text-[10px] text-red-500 mt-1 font-semibold">Mata pelajaran diperlukan</p>}
+                    </div>
+                    <div>
+                      <label className={labelCls}>{isKhas?'Tahap / Kelas MBPK':'Kelas'} <span className="text-red-400">*</span></label>
+                      <input type="text" placeholder={isKhas?"PPKI 1 / TAHAP A":"6 AMANAH"} value={fd.kelas} onChange={e=>setFd({...fd,kelas:e.target.value.toUpperCase()})} className={inputCls(fd.kelas)+" uppercase"}/>
+                      {attempted&&!fd.kelas&&<p className="text-[10px] text-red-500 mt-1 font-semibold">Kelas diperlukan</p>}
+                    </div>
+                    <div>
+                      <label className={labelCls}>Kategori Guru <span className="text-red-400">*</span></label>
+                      <select value={fd.kategori} onChange={e=>handleKategoriChange(e.target.value)} className={inputCls(fd.kategori)}>
+                        <option value="">— Pilih Kategori —</option>
+                        <option value="GURU">GURU BIASA</option>
+                        <option value="GPK PENDIDIKAN KHAS">GPK PENDIDIKAN KHAS</option>
+                      </select>
+                      {attempted&&!fd.kategori&&<p className="text-[10px] text-red-500 mt-1 font-semibold">Kategori diperlukan</p>}
+                    </div>
+                    <div>
+                      <label className={labelCls}>Sesi Pencerapan <span className="text-red-400">*</span></label>
+                      <div className="grid grid-cols-3 gap-2 mt-1">
+                        {['KENDIRI','PP1','PP2'].map(s=>(
+                          <label key={s} className={`text-center py-3 rounded-xl border-2 text-xs font-extrabold cursor-pointer transition-all sesi-btn ${fd.sesi===s?'border-[#1e40af] bg-blue-50 text-[#1e40af]':attempted&&!fd.sesi?'border-red-200 text-gray-400':'border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+                            <input type="radio" name="sesi" value={s} checked={fd.sesi===s} onChange={e=>setFd({...fd,sesi:e.target.value})} className="hidden"/>{s}
+                          </label>
+                        ))}
+                      </div>
+                      {attempted&&!fd.sesi&&<p className="text-[10px] text-red-500 mt-1 font-semibold">Sesi diperlukan</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2 */}
+              {step===2 && (
+                <div className="fade-up">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-violet-50 text-violet-700 flex items-center justify-center shrink-0"><i className="fas fa-chart-bar text-sm"></i></div>
+                      <div>
+                        <h3 className="font-extrabold text-gray-800">Instrumen Rubrik</h3>
+                        <p className="text-xs text-gray-400">{isKhas?<span className="text-violet-600 font-bold">Rubrik GPKhas / MBPK</span>:'Pilih markah 0–4'}</p>
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-2xl">
+                        <div className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Skor</div>
+                        <div className="text-xl font-extrabold text-blue-700 mono">{final}%</div>
+                      </div>
+                      <div className={`text-[10px] font-bold mt-1.5 ${rubrikDone?'text-green-600':'text-gray-400'}`}>
+                        <i className={`fas ${rubrikDone?'fa-check-circle':'fa-circle-notch'} mr-1`}></i>
+                        {scoredCount}/{totalItems} dinilai
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Salin notice */}
+                  {initialData && (
+                    <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-3">
+                      <i className="fas fa-copy text-amber-500 text-xs mt-0.5 shrink-0"></i>
+                      <p className="text-[11px] font-bold text-amber-700">Skor disalin dari rekod <span className="font-extrabold">{initialData.nama}</span> ({initialData.tarikh}). Semak dan kemaskini sebelum hantar.</p>
+                    </div>
+                  )}
+
+                  {isKhas && (
+                    <div className="flex items-center gap-2 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2 mb-3">
+                      <i className="fas fa-graduation-cap text-violet-500 text-xs shrink-0"></i>
+                      <p className="text-[11px] font-bold text-violet-700">Rubrik GPKhas aktif — tindakan menggunakan terminologi MBPK</p>
+                    </div>
+                  )}
+
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 mb-3 flex flex-wrap gap-x-3 gap-y-1">
+                    {activeRubrik.map(cat=>(
+                      <span key={cat.kod} className="text-[10px] font-bold text-blue-600">{cat.kod} <span className="text-blue-400">({cat.wajaran}%)</span></span>
+                    ))}
+                  </div>
+
+                  {!rubrikDone && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-700 text-xs px-3 py-2.5 rounded-xl flex items-center gap-2 mb-4">
+                      <i className="fas fa-info-circle shrink-0"></i> Semua tindakan mesti dinilai. Baki: <strong>{totalItems-scoredCount} tindakan</strong> belum dinilai.
+                    </div>
+                  )}
+
+                  <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-0.5 cscroll">
+                    {activeRubrik.map(cat=>{
+                      const cs=asp[`skor${cat.kod.replace(/\./g,'_')}`]||0;
+                      const catDone = cat.tindakan.every((_,i)=>scores[`${cat.kod}-${i}`]!==undefined);
+                      return (
+                        <div key={cat.kod} className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                          <div className={`flex justify-between items-center px-3 py-2.5 border-b border-gray-100 ${isKhas?'bg-violet-50/60':'bg-gray-50'}`}>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-bold text-gray-400">{cat.kod}</span>
+                              <span className="text-sm font-bold text-gray-700">{cat.tajuk}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isKhas?'bg-violet-100 text-violet-600':'bg-blue-100 text-blue-600'}`}>Wajaran {cat.wajaran}%</span>
+                              {catDone && <span className="text-[10px] font-bold text-green-600"><i className="fas fa-check-circle mr-0.5"></i>Selesai</span>}
+                            </div>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap ml-2 ${cs>=85?'bg-green-100 text-green-700':cs>=55?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-500'}`}>{cs}%</span>
+                          </div>
+                          <div className="divide-y divide-gray-50 bg-white">
+                            {cat.tindakan.map((t,idx)=>{
+                              const key=`${cat.kod}-${idx}`, sel=scores[key];
+                              return (
+                                <div key={key} className="px-3 py-3">
+                                  <p className="text-sm text-gray-600 leading-relaxed mb-3"><span className="text-gray-300 font-mono text-xs mr-1">{idx+1}.</span>{t}</p>
+                                  <div className="flex gap-2">
+                                    {[0,1,2,3,4].map(num=>(
+                                      <button key={num} onClick={()=>setScores({...scores,[key]:num})}
+                                        className={`flex-1 py-2.5 rounded-xl text-sm font-extrabold border-2 transition-all
+                                          ${sel===num
+                                            ?num===4?'bg-green-600 border-green-600 text-white shadow'
+                                              :num===3?'bg-blue-600 border-blue-600 text-white shadow'
+                                              :num===2?'bg-yellow-500 border-yellow-500 text-white shadow'
+                                              :num===1?'bg-orange-500 border-orange-500 text-white shadow'
+                                              :'bg-red-500 border-red-500 text-white shadow'
+                                            :'bg-white border-gray-200 text-gray-400'}`}>{num}</button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3 */}
+              {step===3 && (
+                <div className="space-y-4 fade-up">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0"><i className="fas fa-paperclip text-sm"></i></div>
+                    <div><h3 className="font-extrabold text-gray-800">Muat Naik Fail</h3><p className="text-xs text-gray-400">Pilihan — boleh langkau · Had: {MAX_FILE_LABEL} setiap fail</p></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gradient-to-br from-[#1e40af] to-[#3b82f6] rounded-2xl p-4 text-white">
+                      <div className="text-[10px] font-bold text-blue-200 mb-1 uppercase tracking-widest">Skor Wajaran</div>
+                      <div className="text-3xl font-extrabold mono">{final}%</div>
+                      {isKhas&&<div className="text-[10px] text-blue-200 mt-1 font-bold">Rubrik GPKhas</div>}
+                    </div>
+                    <div className="bg-white border-2 border-gray-100 rounded-2xl p-4">
+                      <div className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Taraf</div>
+                      <div className={`text-base font-extrabold ${final>=85?'text-green-600':final>=70?'text-blue-600':final>=55?'text-yellow-600':'text-red-600'}`}>{tarafInfo(final).label}</div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Ringkasan Per Aspek</p>
+                    <div className="space-y-1.5">
+                      {activeRubrik.map(cat=>{
+                        const pct=asp[`skor${cat.kod.replace(/\./g,'_')}`]||0;
+                        const contrib=parseFloat((pct*cat.wajaran/100).toFixed(2));
+                        return (
+                          <div key={cat.kod} className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-gray-500 w-10 shrink-0">{cat.kod}</span>
+                            <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+                              <div className={`h-full rounded-full transition-all ${isKhas?'bg-violet-600':'bg-[#1e40af]'}`} style={{width:`${pct}%`}}></div>
+                            </div>
+                            <span className="text-[10px] font-bold text-gray-600 mono w-16 text-right shrink-0">{pct}% → {contrib}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="border-2 border-dashed border-blue-200 bg-blue-50/40 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <i className="fas fa-file-pdf text-blue-500"></i>
+                      <span className="text-sm font-bold text-gray-700">1. Fail RPH</span>
+                      <span className="text-[10px] bg-blue-100 text-blue-600 font-bold px-2 py-0.5 rounded-full">PILIHAN</span>
+                    </div>
+                    <input type="file" id="rph-up" className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onChange={e=>handleFile(e,'rph')}/>
+                    <label htmlFor="rph-up" className="inline-flex items-center gap-2 bg-white border border-blue-200 text-blue-700 text-sm font-bold px-4 py-2.5 rounded-xl cursor-pointer active:scale-95 transition-all">
+                      <i className="fas fa-upload text-xs"></i> Pilih Fail RPH
+                    </label>
+                    {fd.rphName&&<p className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1"><i className="fas fa-check-circle"></i> {fd.rphName}</p>}
+                  </div>
+                  <div className="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <i className="fas fa-image text-emerald-500"></i>
+                      <span className="text-sm font-bold text-gray-700">2. Eviden / Bergambar</span>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-600 font-bold px-2 py-0.5 rounded-full">PILIHAN</span>
+                    </div>
+                    <input type="file" id="eviden-up" className="hidden" accept=".pdf,.png,.jpg,.jpeg" onChange={e=>handleFile(e,'eviden')}/>
+                    <label htmlFor="eviden-up" className="inline-flex items-center gap-2 bg-white border border-emerald-200 text-emerald-700 text-sm font-bold px-4 py-2.5 rounded-xl cursor-pointer active:scale-95 transition-all">
+                      <i className="fas fa-upload text-xs"></i> Pilih Fail Eviden
+                    </label>
+                    {fd.evidenName&&<p className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1"><i className="fas fa-check-circle"></i> {fd.evidenName}</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-4 lg:px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex justify-between items-center">
+              {step===1
+                ?<button onClick={onCancel} className="text-gray-400 text-sm font-semibold px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors tap-target">Batal</button>
+                :<button onClick={()=>goStep(step-1)} disabled={submitting} className="flex items-center gap-2 text-gray-500 text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors tap-target"><i className="fas fa-chevron-left text-xs"></i> Kembali</button>
+              }
+              {step<3
+                ?<button onClick={handleNext} disabled={step===2&&!rubrikDone}
+                    className="flex items-center gap-2 bg-[#1e40af] hover:bg-[#1e3a8a] disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-extrabold px-5 py-2.5 rounded-xl transition-colors shadow-sm tap-target">
+                    {step===2&&!rubrikDone?`Baki ${totalItems-scoredCount} tindakan`:'Seterusnya'} <i className="fas fa-chevron-right text-xs"></i>
+                  </button>
+                :<button onClick={handleSubmit} disabled={submitting}
+                    className={`flex items-center gap-2 ${(fd.rphName||fd.evidenName)?'bg-emerald-600 hover:bg-emerald-700':'bg-gray-700 hover:bg-gray-800'} disabled:opacity-50 text-white text-sm font-extrabold px-5 py-2.5 rounded-xl transition-colors shadow-sm tap-target`}>
+                    {submitting?<><i className="fas fa-spinner fa-spin"></i> Menyimpan...</>:<><i className="fas fa-check text-xs"></i> {(fd.rphName||fd.evidenName)?'Hantar & Muat Naik':'Hantar Tanpa Fail'}</>}
+                  </button>
+              }
+            </div>
+          </div>
+
+          {/* Confirm tukar kategori */}
+          {pendingKategori && (
+            <ConfirmModal
+              message="Tukar Kategori?"
+              subMessage={`Semua markah yang telah dimasukkan akan dipadam. Tukar daripada "${fd.kategori||'—'}" kepada "${pendingKategori}"?`}
+              confirmLabel="Tukar & Padam Markah"
+              danger={true}
+              onConfirm={()=>{setFd(p=>({...p,kategori:pendingKategori}));setScores({});setPendingKategori(null);}}
+              onCancel={()=>setPendingKategori(null)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // ===================== UPLOAD MODAL =====================
+    function UploadModal({record, onClose, onSuccess, showToast}) {
+      const [rphFile, setRphFile] = useState(null);
+      const [evidenFile, setEvidenFile] = useState(null);
+      const [uploading, setUploading] = useState(false);
+
+      const toB64 = f => new Promise((res,rej)=>{const r=new FileReader();r.readAsDataURL(f);r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;});
+
+      const handleSelect = (e,type) => {
+        const f=e.target.files[0]; if(!f) return;
+        if(f.size>MAX_FILE_BYTES){ showToast(`Fail melebihi had ${MAX_FILE_LABEL}.`,'error'); return; }
+        if(type==='rph') setRphFile(f); else setEvidenFile(f);
+      };
+
+      const handleUpload = async () => {
+        if(!rphFile&&!evidenFile) return;
+        setUploading(true);
+        try {
+          const p={action:'update_file',id:record.id};
+          if(rphFile){p.rphBase64=await toB64(rphFile);p.rphName=rphFile.name;p.rphMimeType=rphFile.type;}
+          if(evidenFile){p.evidenBase64=await toB64(evidenFile);p.evidenName=evidenFile.name;p.evidenMimeType=evidenFile.type;}
+          google.script.run
+            .withSuccessHandler(r=>{const res=JSON.parse(r);if(res.status==='berjaya')onSuccess();else{showToast('Ralat: '+(res.mesej||''),'error');setUploading(false);}})
+            .withFailureHandler(()=>{showToast('Gagal menghubungi pelayan.','error');setUploading(false);})
+            .updateFileData(JSON.stringify(p));
+        } catch{showToast('Ralat tidak dijangka.','error');setUploading(false);}
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/40 modal-bg z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl shadow-2xl fade-up overflow-hidden">
+            <div className="bg-gradient-to-r from-[#0a1740] to-[#1e40af] text-white px-5 py-4 flex justify-between items-center">
+              <div>
+                <h3 className="font-extrabold flex items-center gap-2 text-sm"><i className="fas fa-cloud-upload-alt"></i> Tambah / Kemaskini Fail</h3>
+                <p className="text-blue-200 text-xs mt-0.5">{record.tarikh} · {record.subjek} · Had {MAX_FILE_LABEL}</p>
+              </div>
+              <button onClick={onClose} disabled={uploading} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-white/15 transition-colors"><i className="fas fa-times"></i></button>
+            </div>
+            <div className="p-5 space-y-3 max-h-[70vh] overflow-y-auto cscroll">
+              <div className="border-2 border-dashed border-blue-200 bg-blue-50/40 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <i className="fas fa-file-pdf text-blue-500 text-sm"></i>
+                  <span className="text-sm font-bold text-gray-700">Fail RPH</span>
+                  {record.rphUrl&&<span className="ml-auto text-[10px] bg-green-100 text-green-600 font-bold px-2 py-0.5 rounded-full"><i className="fas fa-check-circle mr-1"></i>Ada</span>}
+                </div>
+                <input type="file" id="m-rph" className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onChange={e=>handleSelect(e,'rph')}/>
+                <label htmlFor="m-rph" className="inline-flex items-center gap-2 bg-white border border-blue-200 text-blue-700 text-sm font-bold px-3 py-2.5 rounded-xl cursor-pointer active:scale-95 transition-all tap-target">
+                  <i className="fas fa-upload text-xs"></i> Pilih Fail RPH
+                </label>
+                {rphFile&&<p className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1"><i className="fas fa-check-circle"></i> {rphFile.name}</p>}
+              </div>
+              <div className="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <i className="fas fa-image text-emerald-500 text-sm"></i>
+                  <span className="text-sm font-bold text-gray-700">Eviden / Bergambar</span>
+                  {record.evidenUrl&&<span className="ml-auto text-[10px] bg-green-100 text-green-600 font-bold px-2 py-0.5 rounded-full"><i className="fas fa-check-circle mr-1"></i>Ada</span>}
+                </div>
+                <input type="file" id="m-eviden" className="hidden" accept=".pdf,.png,.jpg,.jpeg" onChange={e=>handleSelect(e,'eviden')}/>
+                <label htmlFor="m-eviden" className="inline-flex items-center gap-2 bg-white border border-emerald-200 text-emerald-700 text-sm font-bold px-3 py-2.5 rounded-xl cursor-pointer active:scale-95 transition-all tap-target">
+                  <i className="fas fa-upload text-xs"></i> Pilih Fail Eviden
+                </label>
+                {evidenFile&&<p className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1"><i className="fas fa-check-circle"></i> {evidenFile.name}</p>}
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button onClick={onClose} disabled={uploading} className="flex-1 py-3 border-2 border-gray-200 text-gray-600 font-bold text-sm rounded-xl tap-target">Batal</button>
+                <button onClick={handleUpload} disabled={(!rphFile&&!evidenFile)||uploading}
+                  className="flex-1 py-3 bg-[#1e40af] hover:bg-[#1e3a8a] disabled:bg-gray-200 disabled:text-gray-400 text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors tap-target">
+                  {uploading?<><i className="fas fa-spinner fa-spin"></i> Muat Naik...</>:<><i className="fas fa-save text-xs"></i> Simpan</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ===================== VIEW MODAL =====================
+    function ViewModal({record, onClose}) {
+      const {label} = tarafInfo(record.skor);
+      const activeRubrik = getRubrik(record.kategori);
+      const isKhasRec = (record.kategori||'').toUpperCase()==='GPK PENDIDIKAN KHAS';
+
+      return (
+        <div className="fixed inset-0 bg-black/50 modal-bg z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-3xl rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col fade-up" style={{maxHeight:'92vh'}}>
+            <div className={`bg-gradient-to-r ${isKhasRec?'from-[#1e1b4b] to-[#7c3aed]':'from-[#0a1740] to-[#1e40af]'} text-white px-5 py-4 flex justify-between items-center rounded-t-3xl sm:rounded-t-2xl shrink-0`}>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold">Maklumat Penilaian</h3>
+                  {isKhasRec&&<span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/20">GPKhas</span>}
+                </div>
+                <p className="text-blue-200 text-xs mt-0.5 truncate max-w-[220px] sm:max-w-none">{record.nama} · {record.subjek} ({record.kelas})</p>
+              </div>
+              <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/15 transition-colors shrink-0"><i className="fas fa-times"></i></button>
+            </div>
+
+            <div className="overflow-y-auto cscroll flex-1 p-4 sm:p-6 bg-gray-50 space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {[
+                  {label:'Tarikh',val:record.tarikh,icon:'fa-calendar',col:'text-gray-800'},
+                  {label:'Penilai / Sesi',val:`${record.pentadbir||'—'} · ${record.sesi}`,icon:'fa-user-check',col:'text-blue-600'},
+                  {label:'Skor Wajaran',val:`${fmtSkor(record.skor)}%`,icon:'fa-chart-pie',col:'text-blue-700'},
+                  {label:'Taraf',val:label,icon:'fa-award',col:record.skor>=85?'text-green-600':record.skor>=70?'text-blue-600':'text-orange-600'},
+                ].map((c,i)=>(
+                  <div key={i} className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm">
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1"><i className={`fas ${c.icon}`}></i>{c.label}</div>
+                    <div className={`font-extrabold text-sm mono ${c.col} leading-tight`}>{c.val}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Fail RPH</div>
+                  {record.rphUrl?<a href={record.rphUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"><i className="fas fa-file-pdf"></i> Lihat RPH</a>:<span className="text-gray-300 text-xs italic">Tiada</span>}
+                </div>
+                <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Eviden</div>
+                  {record.evidenUrl?<a href={record.evidenUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"><i className="fas fa-image"></i> Lihat Eviden</a>:<span className="text-gray-300 text-xs italic">Tiada</span>}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                <h4 className="font-extrabold text-gray-700 text-sm mb-3 flex items-center gap-2">
+                  <i className={`fas fa-balance-scale ${isKhasRec?'text-violet-500':'text-blue-500'}`}></i> Skor Berdasarkan Wajaran
+                  {isKhasRec&&<span className="text-[10px] font-bold px-2 py-0.5 rounded-md badge-khas">Rubrik GPKhas</span>}
+                </h4>
+                <div className="space-y-2">
+                  {activeRubrik.map(cat=>{
+                    const cs=record.details&&record.details[`skor${cat.kod.replace(/\./g,'_')}`]||0;
+                    const contrib=parseFloat((cs*cat.wajaran/100).toFixed(2));
+                    return (
+                      <div key={cat.kod} className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-gray-400 w-10 shrink-0">{cat.kod}</span>
+                        <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                          <div className={`h-full rounded-full ${isKhasRec?'bg-violet-600':'bg-[#1e40af]'}`} style={{width:`${cs}%`}}></div>
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-500 mono w-24 text-right shrink-0">{cs}% × {cat.wajaran}% = {contrib}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-extrabold text-gray-700 text-sm mb-3 flex items-center gap-2"><i className="fas fa-list-check text-blue-500"></i> Perincian Markah</h4>
+                <div className="space-y-3">
+                  {activeRubrik.map(cat=>{
+                    const cs=record.details&&record.details[`skor${cat.kod.replace(/\./g,'_')}`];
+                    return (
+                      <div key={cat.kod} className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+                        <div className={`flex justify-between items-center px-4 py-3 border-b border-gray-100 ${isKhasRec?'bg-violet-50/50':'bg-gray-50'}`}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold text-gray-400">{cat.kod}</span>
+                            <span className="text-sm font-bold text-gray-700">{cat.tajuk}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isKhasRec?'bg-violet-100 text-violet-600':'bg-blue-100 text-blue-600'}`}>Wajaran {cat.wajaran}%</span>
+                          </div>
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ml-2 ${cs>=85?'bg-green-100 text-green-700':cs>=55?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-500'}`}>{cs!==undefined?cs:0}%</span>
+                        </div>
+                        <div className="divide-y divide-gray-50">
+                          {cat.tindakan.map((t,idx)=>{
+                            const sc=record.itemScores?record.itemScores[`${cat.kod}-${idx}`]:null;
+                            const v=sc!==null&&sc!==undefined?sc:null;
+                            return (
+                              <div key={idx} className="px-4 py-3 flex items-start justify-between gap-3">
+                                <p className="text-sm text-gray-600 flex-1 leading-relaxed"><span className="text-gray-300 font-mono text-xs mr-1">{idx+1}.</span>{t}</p>
+                                <div className={`shrink-0 w-10 h-10 rounded-xl flex flex-col items-center justify-center border shadow-sm ${v===4?'bg-green-50 border-green-200':v===3?'bg-blue-50 border-blue-200':v===2?'bg-yellow-50 border-yellow-200':v===1?'bg-orange-50 border-orange-200':v===0?'bg-red-50 border-red-200':'bg-gray-50 border-gray-200'}`}>
+                                  <span className={`text-[9px] font-bold ${v===4?'text-green-500':v===3?'text-blue-500':v===2?'text-yellow-500':v===1?'text-orange-500':v===0?'text-red-500':'text-gray-300'}`}>SKOR</span>
+                                  <span className={`text-sm font-extrabold mono leading-none ${v===4?'text-green-700':v===3?'text-blue-700':v===2?'text-yellow-700':v===1?'text-orange-700':v===0?'text-red-700':'text-gray-300'}`}>{v!==null?v:'—'}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App/>);
+  </script>
 </body>
 </html>
